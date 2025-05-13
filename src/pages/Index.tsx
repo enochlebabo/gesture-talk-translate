@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Hand } from "@/components/ui/hand";
 import { Video, Mic, MicOff, VideoOff, Phone } from "lucide-react";
+import { getGestureTranslation } from "@/utils/gestureTranslations";
 
 const Index = () => {
   const [isVideoOn, setIsVideoOn] = useState(false);
@@ -89,6 +90,9 @@ const Index = () => {
     return () => clearInterval(gestureInterval);
   };
 
+  // Get the current gesture translation
+  const gestureTranslation = getGestureTranslation(currentGesture);
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <Card className="w-full max-w-3xl">
@@ -161,10 +165,28 @@ const Index = () => {
       <div className="mt-8 max-w-3xl w-full">
         <Card>
           <CardHeader>
-            <CardTitle>Detected Gestures</CardTitle>
+            <CardTitle>Gesture Translation</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>This system simulates detecting hand gestures in real-time. In a production system, this would use actual computer vision models to detect gestures.</p>
+            {isCallActive && currentGesture ? (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Detected Gesture:</span>
+                  <span className="bg-primary/10 text-primary px-3 py-1 rounded-full">{currentGesture}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Meaning:</span>
+                  <span className="bg-secondary/10 text-secondary px-3 py-1 rounded-full">{gestureTranslation.meaning}</span>
+                </div>
+                <p className="text-gray-500 text-sm mt-2">{gestureTranslation.description}</p>
+              </div>
+            ) : (
+              <p className="text-center text-gray-500">
+                {isCallActive 
+                  ? "Waiting for gesture detection..." 
+                  : "Start a call to see gesture translations"}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
