@@ -55,6 +55,13 @@ const Index = () => {
     try {
       if (!videoRef.current) return;
 
+      // Stop any existing stream first
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
+      // Request new stream with both video and audio
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true
@@ -67,6 +74,11 @@ const Index = () => {
       // Enable or disable audio based on initial state
       stream.getAudioTracks().forEach(track => {
         track.enabled = isAudioOn;
+      });
+
+      // Make sure video is enabled
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = true;
       });
       
       setIsVideoOn(true);
@@ -239,7 +251,7 @@ const Index = () => {
             )}
 
             {/* Gesture recognition display */}
-            {isCallActive && currentGesture && (
+            {isCallActive && currentGesture && currentGesture !== "No gesture detected" && (
               <div className="absolute bottom-4 right-4">
                 <Hand 
                   gesture={currentGesture} 
@@ -267,7 +279,7 @@ const Index = () => {
                 variant="default" 
                 className="bg-green-600 hover:bg-green-700 transition-colors"
                 onClick={startCall}
-                disabled={hasPermission === false || hasPermission === null}
+                disabled={hasPermission === false}
               >
                 Start Call
               </Button>
