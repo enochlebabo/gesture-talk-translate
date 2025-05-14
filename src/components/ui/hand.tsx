@@ -11,6 +11,18 @@ interface HandProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const Hand = React.forwardRef<HTMLDivElement, HandProps>(
   ({ className, gesture, ...props }, ref) => {
+    // Map gestures to appropriate emojis
+    const getGestureEmoji = (gesture: string): string => {
+      switch (gesture) {
+        case "Wave": return "👋";
+        case "Thumbs Up": return "👍";
+        case "Peace Sign": return "✌️";
+        case "Pointing": return "👉";
+        case "Open Palm": return "✋";
+        default: return "🤲";
+      }
+    };
+
     return (
       <div 
         ref={ref} 
@@ -18,7 +30,7 @@ const Hand = React.forwardRef<HTMLDivElement, HandProps>(
         {...props}
       >
         <div className="text-center">
-          <div className="text-2xl mb-2">👋</div>
+          <div className="text-2xl mb-2">{getGestureEmoji(gesture || "")}</div>
           <p className="text-sm text-muted-foreground">{gesture || "No gesture detected"}</p>
         </div>
       </div>

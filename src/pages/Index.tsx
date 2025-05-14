@@ -6,6 +6,7 @@ import { Hand } from "@/components/ui/hand";
 import { Video, Mic, MicOff, VideoOff, Phone } from "lucide-react";
 import { getGestureTranslation } from "@/utils/gestureTranslations";
 import { toast } from "@/hooks/use-toast";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const Index = () => {
   const [isVideoOn, setIsVideoOn] = useState(false);
@@ -13,8 +14,9 @@ const Index = () => {
   const [currentGesture, setCurrentGesture] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCallActive, setIsCallActive] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const gestureIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Request camera permission at component mount
   useEffect(() => {
@@ -23,6 +25,7 @@ const Index = () => {
         // Just check if permissions are available
         await navigator.mediaDevices.getUserMedia({ video: true });
         setHasPermission(true);
+        console.log("Camera permissions granted");
       } catch (err) {
         console.error("Permission check failed:", err);
         setHasPermission(false);
@@ -35,37 +38,47 @@ const Index = () => {
     };
 
     checkPermissions();
+
+    // Cleanup function
+    return () => {
+      if (gestureIntervalRef.current) {
+        clearInterval(gestureIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   // Handle starting the video call
   const startCall = async () => {
     try {
-      if (videoRef.current) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
-        
-        // Store the stream reference
-        streamRef.current = stream;
-        videoRef.current.srcObject = stream;
-        
-        // Enable or disable audio based on initial state
-        stream.getAudioTracks().forEach(track => {
-          track.enabled = isAudioOn;
-        });
-        
-        setIsVideoOn(true);
-        setIsCallActive(true);
-        
-        // Simulate gesture detection
-        simulateGestureDetection();
-        
-        toast({
-          title: "Call Started",
-          description: "Your camera and microphone are now active.",
-        });
-      }
+      if (!videoRef.current) return;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      
+      // Store the stream reference
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      
+      // Enable or disable audio based on initial state
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = isAudioOn;
+      });
+      
+      setIsVideoOn(true);
+      setIsCallActive(true);
+      
+      // Start gesture detection simulation
+      simulateGestureDetection();
+      
+      toast({
+        title: "Call Started",
+        description: "Your camera and microphone are now active.",
+      });
     } catch (err) {
       console.error("Error accessing media devices:", err);
       toast({
@@ -73,6 +86,8 @@ const Index = () => {
         description: "Please check your camera and microphone permissions.",
         variant: "destructive",
       });
+      // Update permission status in case it was denied during this attempt
+      setHasPermission(false);
     }
   };
 
@@ -89,6 +104,12 @@ const Index = () => {
       setIsVideoOn(false);
       setIsCallActive(false);
       setCurrentGesture("");
+      
+      // Clear gesture detection interval
+      if (gestureIntervalRef.current) {
+        clearInterval(gestureIntervalRef.current);
+        gestureIntervalRef.current = null;
+      }
       
       toast({
         title: "Call Ended",
@@ -138,20 +159,39 @@ const Index = () => {
       "No gesture detected"
     ];
     
-    const gestureInterval = setInterval(() => {
+    // Clear any existing interval
+    if (gestureIntervalRef.current) {
+      clearInterval(gestureIntervalRef.current);
+    }
+    
+    // Set new interval for gesture detection
+    gestureIntervalRef.current = setInterval(() => {
       if (!isCallActive) {
-        clearInterval(gestureInterval);
+        if (gestureIntervalRef.current) {
+          clearInterval(gestureIntervalRef.current);
+          gestureIntervalRef.current = null;
+        }
         return;
       }
       const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
       setCurrentGesture(randomGesture);
     }, 3000);
-
-    return () => clearInterval(gestureInterval);
   };
 
   // Get the current gesture translation
   const gestureTranslation = getGestureTranslation(currentGesture);
+
+  // Map gestures to appropriate emojis
+  const getGestureEmoji = (gesture: string): string => {
+    switch (gesture) {
+      case "Wave": return "👋";
+      case "Thumbs Up": return "👍";
+      case "Peace Sign": return "✌️";
+      case "Pointing": return "👉";
+      case "Open Palm": return "✋";
+      default: return "🤲";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
@@ -160,6 +200,16 @@ const Index = () => {
           <CardTitle className="text-center">Video Call with Gesture Recognition</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Permission status alert */}
+          {hasPermission === false && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Camera Access Required</AlertTitle>
+              <AlertDescription>
+                Please allow camera access in your browser settings and refresh the page.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden">
             {isCallActive ? (
               <video
@@ -167,11 +217,13 @@ const Index = () => {
                 autoPlay
                 playsInline
                 muted={!isAudioOn}
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover ${isVideoOn ? '' : 'hidden'}`}
               />
             ) : (
               <div className="flex items-center justify-center h-full">
-                {hasPermission ? (
+                {hasPermission === null ? (
+                  <p className="text-white">Checking camera permission...</p>
+                ) : hasPermission ? (
                   <p className="text-white">Start call to activate camera</p>
                 ) : (
                   <p className="text-white">Camera permission required</p>
@@ -179,10 +231,22 @@ const Index = () => {
               </div>
             )}
 
+            {/* Placeholder when video is off but call is active */}
+            {isCallActive && !isVideoOn && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
+                <VideoOff size={64} className="text-gray-400" />
+              </div>
+            )}
+
             {/* Gesture recognition display */}
-            <div className="absolute bottom-4 right-4">
-              <Hand gesture={currentGesture} className="bg-white rounded-lg shadow-lg" />
-            </div>
+            {isCallActive && currentGesture && (
+              <div className="absolute bottom-4 right-4">
+                <Hand 
+                  gesture={currentGesture} 
+                  className="bg-white rounded-lg shadow-lg p-3"
+                />
+              </div>
+            )}
           </div>
 
           {/* Call controls */}
@@ -193,6 +257,7 @@ const Index = () => {
               onClick={toggleAudio}
               disabled={!isCallActive}
               aria-label={isAudioOn ? "Mute microphone" : "Unmute microphone"}
+              className="transition-all duration-200"
             >
               {isAudioOn ? <Mic size={20} /> : <MicOff size={20} />}
             </Button>
@@ -200,9 +265,9 @@ const Index = () => {
             {!isCallActive ? (
               <Button 
                 variant="default" 
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 transition-colors"
                 onClick={startCall}
-                disabled={!hasPermission}
+                disabled={hasPermission === false || hasPermission === null}
               >
                 Start Call
               </Button>
@@ -210,6 +275,7 @@ const Index = () => {
               <Button 
                 variant="destructive" 
                 onClick={endCall}
+                className="transition-colors"
               >
                 <Phone size={20} className="mr-2 rotate-135" />
                 End Call
@@ -222,6 +288,7 @@ const Index = () => {
               onClick={toggleVideo}
               disabled={!isCallActive}
               aria-label={isVideoOn ? "Turn off camera" : "Turn on camera"}
+              className="transition-all duration-200"
             >
               {isVideoOn ? <Video size={20} /> : <VideoOff size={20} />}
             </Button>
@@ -239,7 +306,10 @@ const Index = () => {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">Detected Gesture:</span>
-                  <span className="bg-primary/10 text-primary px-3 py-1 rounded-full">{currentGesture}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{getGestureEmoji(currentGesture)}</span>
+                    <span className="bg-primary/10 text-primary px-3 py-1 rounded-full">{currentGesture}</span>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">Meaning:</span>
