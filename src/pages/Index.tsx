@@ -5,13 +5,37 @@ import { Button } from "@/components/ui/button";
 import { Hand } from "@/components/ui/hand";
 import { Video, Mic, MicOff, VideoOff, Phone } from "lucide-react";
 import { getGestureTranslation } from "@/utils/gestureTranslations";
+import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [isVideoOn, setIsVideoOn] = useState(false);
-  const [isAudioOn, setIsAudioOn] = useState(false);
+  const [isAudioOn, setIsAudioOn] = useState(true);
   const [currentGesture, setCurrentGesture] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [hasPermission, setHasPermission] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Request camera permission at component mount
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        // Just check if permissions are available
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasPermission(true);
+      } catch (err) {
+        console.error("Permission check failed:", err);
+        setHasPermission(false);
+        toast({
+          title: "Camera Access Required",
+          description: "Please allow camera access for this application to work.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    checkPermissions();
+  }, []);
 
   // Handle starting the video call
   const startCall = async () => {
@@ -19,51 +43,87 @@ const Index = () => {
       if (videoRef.current) {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: isAudioOn
+          audio: true
         });
+        
+        // Store the stream reference
+        streamRef.current = stream;
         videoRef.current.srcObject = stream;
+        
+        // Enable or disable audio based on initial state
+        stream.getAudioTracks().forEach(track => {
+          track.enabled = isAudioOn;
+        });
+        
         setIsVideoOn(true);
         setIsCallActive(true);
         
         // Simulate gesture detection
         simulateGestureDetection();
+        
+        toast({
+          title: "Call Started",
+          description: "Your camera and microphone are now active.",
+        });
       }
     } catch (err) {
       console.error("Error accessing media devices:", err);
+      toast({
+        title: "Failed to start call",
+        description: "Please check your camera and microphone permissions.",
+        variant: "destructive",
+      });
     }
   };
 
   // Handle ending the call
   const endCall = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      
       setIsVideoOn(false);
       setIsCallActive(false);
       setCurrentGesture("");
+      
+      toast({
+        title: "Call Ended",
+        description: "Your camera and microphone have been turned off.",
+      });
     }
   };
 
   // Toggle audio
   const toggleAudio = () => {
-    setIsAudioOn(!isAudioOn);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getAudioTracks().forEach(track => {
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach(track => {
         track.enabled = !isAudioOn;
+      });
+      setIsAudioOn(!isAudioOn);
+      
+      toast({
+        title: isAudioOn ? "Microphone Muted" : "Microphone Unmuted",
+        description: isAudioOn ? "Others can't hear you now." : "Others can hear you now.",
       });
     }
   };
 
   // Toggle video
   const toggleVideo = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getVideoTracks().forEach(track => {
+    if (streamRef.current) {
+      streamRef.current.getVideoTracks().forEach(track => {
         track.enabled = !isVideoOn;
       });
       setIsVideoOn(!isVideoOn);
+      
+      toast({
+        title: isVideoOn ? "Camera Turned Off" : "Camera Turned On",
+        description: isVideoOn ? "Others can't see you now." : "Others can see you now.",
+      });
     }
   };
 
@@ -111,7 +171,11 @@ const Index = () => {
               />
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-white">Camera off</p>
+                {hasPermission ? (
+                  <p className="text-white">Start call to activate camera</p>
+                ) : (
+                  <p className="text-white">Camera permission required</p>
+                )}
               </div>
             )}
 
@@ -128,6 +192,7 @@ const Index = () => {
               size="icon"
               onClick={toggleAudio}
               disabled={!isCallActive}
+              aria-label={isAudioOn ? "Mute microphone" : "Unmute microphone"}
             >
               {isAudioOn ? <Mic size={20} /> : <MicOff size={20} />}
             </Button>
@@ -137,6 +202,7 @@ const Index = () => {
                 variant="default" 
                 className="bg-green-600 hover:bg-green-700"
                 onClick={startCall}
+                disabled={!hasPermission}
               >
                 Start Call
               </Button>
@@ -155,6 +221,7 @@ const Index = () => {
               size="icon"
               onClick={toggleVideo}
               disabled={!isCallActive}
+              aria-label={isVideoOn ? "Turn off camera" : "Turn on camera"}
             >
               {isVideoOn ? <Video size={20} /> : <VideoOff size={20} />}
             </Button>
