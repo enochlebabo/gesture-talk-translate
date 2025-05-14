@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Hand } from "@/components/ui/hand";
 import { Video, Mic, MicOff, VideoOff, Phone } from "lucide-react";
 import { getGestureTranslation } from "@/utils/gestureTranslations";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const Index = () => {
@@ -54,6 +54,8 @@ const Index = () => {
   const startCall = async () => {
     try {
       if (!videoRef.current) return;
+      
+      console.log("Starting call...");
 
       // Stop any existing stream first
       if (streamRef.current) {
@@ -62,10 +64,13 @@ const Index = () => {
       }
 
       // Request new stream with both video and audio
+      console.log("Requesting media stream...");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true
       });
+      
+      console.log("Media stream obtained successfully");
       
       // Store the stream reference
       streamRef.current = stream;
